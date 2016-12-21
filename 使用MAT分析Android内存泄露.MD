@@ -11,7 +11,7 @@ Android hprof文件生成可以使用adb shell am dump < pid >< output-file-name
 ![oql](images/mat/execute.png)
 ### 3
 得到应用中所有未被回收的Activity列表,任意选择一个你关系的类,右键点击"Merge Shortest Paths to GC Root",在弹出二级菜单中选择"excudle all phantom/weak/soft etc. references"
-![merge](images/mat/merge.png)
+![merge](images/mat/merge.jpg)
 ### 4
 得到泄露引用列表
 ![result](images/mat/result.png)
