@@ -99,7 +99,7 @@ start(char const*, char const*, bool)+358)
 ......省略许多不可描述的信息......
 ----- end 1041 -----
 ```
-
-#### Native Exception 捕获方案：
-
-- 动态加载方案：
+我们的SDK就需要收集类似Tombstone的崩溃信息,方便开发者定位到崩溃地方.
+### Day5
+我们首先从如何在崩溃的时候dump出堆栈信息入手.
+总所周知Android使用Linux内核,当崩溃的时候应用会接收到内核发出的信号,Android支持信号如下:
