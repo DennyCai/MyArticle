@@ -102,7 +102,27 @@ start(char const*, char const*, bool)+358)
 我们的SDK就需要收集类似Tombstone的崩溃信息,方便开发者定位到崩溃地方.
 ### Day5
 我们首先从如何在崩溃的时候dump出堆栈信息入手.
-总所周知Android使用Linux内核,当崩溃的时候应用会接收到内核发出的信号,Android支持信号如下:
+总所周知Android使用Linux内核,当崩溃的时候应用会接收到内核发出的信号.那么我们就需要注册关心的信号并处理.
+(注:默认读者熟悉基本的NDK开发)
+通过调用`int sigaction(int signo,const struct sigaction *act,struct sigaction *oact);`方法来注册我们关心的信号值,`signo`:表示信号值,`act`:注册的信号处理函数数据结构,`oact`:默认的信号处理函数,
+`struct sigaction`数据结构如下:
+```c
+struct sigaction {
+  unsigned int sa_flags;
+  union {
+    sighandler_t sa_handler;
+    void (*sa_sigaction)(int, struct siginfo*, void*);
+  };
+  sigset_t sa_mask;
+  void (*sa_restorer)(void);
+};
+```
+`sa_flags`:用来改变信号处理行为,这里我们需要将改值设为`SA_RESETHAND`,表示执行完自己的处理函数后再执行系统的处理函数.
+~~`sa_handle`~~:已经废弃,取而代之的是`sa_sigaction`:函数指针,第一个参数是信号值,第二个参数为异常信号的信息,第三个是`ucontext_t`类型.
+`sa_mask`:信号掩码.
+Android支持信号如下:
+| 信号值 |   |   |  |
+| -------- | ------- | -------- | ------ |
 | SIGHUP 1  | SIGINT 2  | SIGQUIT 3 | SIGILL 4 |
 | SIGTRAP 5 | SIGABRT 6 | SIGIOT 6  | SIGBUS 7 |
 | SIGFPE 8  | SIGKILL 9 | SIGUSR1 10| SIGSEGV 11|
@@ -113,5 +133,36 @@ start(char const*, char const*, bool)+358)
 | SIGWINCH 28 | SIGIO 29 | SIGPOLL 29 | SIGPWR 30 |
 | SIGSYS 31 | SIGUNUSED 31 | | |
 
+我们可以在`JNI_OnLoad`方法中注册信号处理函数:
+```c
+static struct sigaction *def;
+void handleSignal(int code, siginfo_t *info, void *reserved){
+    __android_log_print(ANDROID_LOG_INFO, "NativeCrash","Signal Code:%d", code);
+}
+void registerCrashSignal() {
+    struct sigaction handler;
+    handler.sa_sigaction = handleSignal;
+    handler.sa_flags = SA_RESETHAND | SA_SIGINFO;
+    sigaction(SIGSEGV, &handler, def);//配合demo,先注册段异常信号
+}
 
-
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void* reserved)
+{
+    registerCrashSignal();
+    ....
+}
+```
+有了信号处理函数,接下来编写一个出现异常的函数:
+```c
+void doCrash(){
+    int *p= NULL;
+    *p=1;
+};
+//通过JNI调用c方法
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_denny_anative_MainActivity_doCrash(JNIEnv *env, jobject instance) {
+    doCrash();
+}
+```
+经典的野指针异常.执行后可看到logcat打印出`15818-15818/com.denny.anative I/NativeCrash: Signal Code:11`,表示我们已经成功捕获异常信号.
