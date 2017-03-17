@@ -5,7 +5,7 @@
 ### Day3
 - Java Exception：使用'Thread.setDefaultUncaughtExceptionHandler'来捕获Java异常。
 - Javascript Exception：使用'window.onerror'来捕获Javascript异常。
-- ANR：启动一个线程，每5秒往主线程的handler post一个Runnable对象，在里面进行计数器+1，若下一次计数器的值与上一次相等，则发生了ANR。
+- ANR：启动一个线程，每5秒往主线程的handler post一个Runnable对象，在里面进行计数器+1，若下一次计数器的值与上一次相等，则发生了ANR。(比较耗电,最好是activity可交互的情况下监控,锁屏或者无activity时挂起)
 - Native Exception：比较麻烦，另起章节说明。
 
 ### Day4
@@ -166,3 +166,12 @@ Java_com_denny_anative_MainActivity_doCrash(JNIEnv *env, jobject instance) {
 }
 ```
 经典的野指针异常.执行后可看到logcat打印出`15818-15818/com.denny.anative I/NativeCrash: Signal Code:11`,表示我们已经成功捕获异常信号.
+
+### Day5
+捕获到异常信号后我们就可以回溯堆栈信息了,但是Android并没有提供获取堆栈的接口.这里有三种方案可以实现:
+#### 1.动态加载
+翻看debugger源码,4.4以上使用`libbacktrace.so`来获取堆栈信息,而4.4以下可使用`libcorkscrew.so`来获取堆栈信息,代码实现可参考:[http://www.jianshu.com/p/5f8f6d95b79c](http://www.jianshu.com/p/5f8f6d95b79c)
+缺点是6.0以上不再允许使用`dlopen`加载非公开的库.
+
+#### 2.Google-Breakpad
+跨平台的崩溃信息收集,源自chromium,Github地址:[https://github.com/google/breakpad](https://github.com/google/breakpad),文档教程都挺齐全.
