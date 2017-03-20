@@ -175,3 +175,156 @@ Java_com_denny_anative_MainActivity_doCrash(JNIEnv *env, jobject instance) {
 
 #### 2.Google-Breakpad
 跨平台的崩溃信息收集,源自chromium,Github地址:[https://github.com/google/breakpad](https://github.com/google/breakpad),文档教程都挺齐全.
+##### 1、将源码克隆下来，添加到自己的项目中
+项目结构
+![project](https://github.com/DennyCai/MyArticle/blob/master/images/mat/project.png?raw=true)
+##### 2、修改Android.mk文件
+自己的项目:
+```Makefile
+LOCAL_PATH := $(call my-dir)
+
+MY_LOCAL_PATH := $(call my-dir)
+
+
+include $(CLEAR_VARS)
+
+LOCAL_CFLAGS += -std=gun++11
+LOCAL_CPPFLAGS += -std=gun++11
+
+LOCAL_PATH := $(MY_LOCAL_PATH)
+LOCAL_MODULE := crash
+LOCAL_SRC_FILES := native-lib.cpp
+
+LOCAL_LDLIBS    := -llog
+LOCAL_STATIC_LIBRARIES += breakpad_client
+
+include $(BUILD_SHARED_LIBRARY)
+
+$(call import-add-path,$(LOCAL_PATH)/)
+$(call import-module,./../../../../breakpad/android/google_breakpad)
+```
+breakpad项目:
+breakpad\android\google_breakpad\Android.mk加入`LOCAL_CPPFLAGS := -std=c++11 -D__STDC_LIMIT_MACROS`配置
+如果编译的时候提示缺少`src\third_party\lss\linux_syscall_support.h`,可从这里克隆下来`git clone https://chromium.googlesource.com/linux-syscall-support`.
+##### 3、使用breakpad
+需要注释掉信号注册,避免与breakpad冲突
+```java
+ static {
+        System.loadLibrary("crash");
+    }
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        Button btn = (Button) findViewById(R.id.btn);
+        btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                doCrash();
+            }
+        });
+
+        initNative();
+    }
+    public native void initNative();
+    public native void doCrash();
+```
+```c
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_denny_anative_MainActivity_initNative(JNIEnv *env, jobject instance) {
+    google_breakpad::MinidumpDescriptor descriptor("/sdcard");
+    google_breakpad::ExceptionHandler* eh = new google_breakpad::ExceptionHandler(descriptor, nullptr, DumpCallback, nullptr, true, -1);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_denny_anative_MainActivity_doCrash(JNIEnv *env, jobject instance) {
+    doCrash();
+}```
+
+##### 4、获取并解析dmp文件
+- 编译安装breakpad原因需要dump_syms工具
+- 获取崩溃的minidump文件
+```shell
+>adb shell "ls /sdcard/ | grep dmp"
+557b2ff1-5987-e9c5-26c02630-18d11883.dmp
+>adb pull /sdcard/557b2ff1-5987-e9c5-26c02630-18d11883.dmp .
+```
+- 将so转化为符号文件
+`dump_syms /mnt/shared/symbol/libcrash.so > libcrash.so.sym`
+- 获取so版本信息
+`head libcrash.so.sym`,输出`MODULE Linux arm 93DFE5EDABE6111BE7CCF4A85A7D3C520 libcrash.so`,十六进制为版本号.
+- 解析堆栈
+```shell
+minidump_stackwalk 557b2ff1-5987-e9c5-26c02630-18d11883.dmp ./ > backtrace.txt
+```
+```
+symbols/
+└── libcrash.so
+    ├── 557b2ff1-5987-e9c5-26c02630-18d11883.dmp
+    ├── 93DFE5EDABE6111BE7CCF4A85A7D3C520
+    │   └── libcrash.so.sym
+    └── backtrace.txt
+```
+```
+Operating system: Android
+                  0.0.0 Linux 3.10.28-gf3355b2 #1 SMP PREEMPT Thu Sep 24 06:09:29 CST 2015 armv7l
+CPU: arm
+     ARMv7 ARM part(0x4100d030) features: swp,half,thumb,fastmult,vfpv2,edsp,neon,vfpv3,tls,vfpv4,idiva,idivt
+     4 CPUs
+
+GPU: UNKNOWN
+
+Crash reason:  SIGSEGV
+Crash address: 0x0
+Process uptime: not available
+
+Thread 0 (crashed)
+ 0  libcrash.so + 0x218b8
+     r0 = 0x00000000    r1 = 0x00000001    r2 = 0x9c800019    r3 = 0x419d1f48
+     r4 = 0x4c9fcd40    r5 = 0x419d3548    r6 = 0x00000000    r7 = 0xbe816300
+     r8 = 0xbe816308    r9 = 0x418dcdd0   r10 = 0x419d3558   r12 = 0x5470bedc
+     fp = 0xbe81631c    sp = 0xbe8162ec    lr = 0x546cbc13    pc = 0x546cb8b8
+    Found by: given as instruction pointer in context
+ 1  libdvm.so + 0x204ce
+     sp = 0xbe816308    pc = 0x415234d0
+    Found by: stack scanning
+ 2  dalvik-heap (deleted) + 0x2552e
+     sp = 0xbe816318    pc = 0x4279a530
+    Found by: stack scanning
+ 3  dalvik-heap (deleted) + 0x14722
+     sp = 0xbe81631c    pc = 0x42789724
+    Found by: stack scanning
+ 4  libdvm.so + 0x51159
+     sp = 0xbe816320    pc = 0x4155415b
+    Found by: stack scanning
+ 5  data@app@com.denny.anative-2.apk@classes.dex + 0x1b04d2
+     sp = 0xbe816328    pc = 0x545a44d4
+    Found by: stack scanning
+ 6  libcrash.so + 0x21bfb
+     sp = 0xbe81632c    pc = 0x546cbbfd
+    Found by: stack scanning
+ 7  libcrash.so + 0x21bfb
+     sp = 0xbe81634c    pc = 0x546cbbfd
+    Found by: stack scanning
+ 8  libc.so + 0x11455
+ ```
+ 根据`0  libcrash.so + 0x218b8`
+ 使用arm-linux-androideabi-addr2line解析
+ ```
+ D:\sdk\ndk-bundle\toolchains\arm-linux-androideabi-4.9\prebuilt\windows-x86_64\b
+in>arm-linux-androideabi-addr2line -C -f -e "E:\cocos2d-sample\demo\hello\native
+\app\build\intermediates\ndkBuild\debug\obj\local\armeabi-v7a\libcrash.so" 0x218
+b8
+doCrash()
+E:/cocos2d-sample/demo/hello/native/app/src/main/cpp/native-lib.cpp:10
+```
+代码
+```c
+void doCrash(){
+    int *p=NULL;
+line:10    *p = 1;
+}
+```
+出现崩溃的堆栈已经出来了,不过这个过程很是麻烦,如果要做成sdk是需要修改源码,使其崩溃时将minidump文件上传至服务器,然后写一堆脚本进行自动化解析.
