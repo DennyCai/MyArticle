@@ -167,7 +167,7 @@ Java_com_denny_anative_MainActivity_doCrash(JNIEnv *env, jobject instance) {
 ```
 经典的野指针异常.执行后可看到logcat打印出`15818-15818/com.denny.anative I/NativeCrash: Signal Code:11`,表示我们已经成功捕获异常信号.
 
-### Day5
+### Day6
 捕获到异常信号后我们就可以回溯堆栈信息了,但是Android并没有提供获取堆栈的接口.这里有三种方案可以实现:
 #### 1.动态加载
 翻看debugger源码,4.4以上使用`libbacktrace.so`来获取堆栈信息,而4.4以下可使用`libcorkscrew.so`来获取堆栈信息,代码实现可参考:[http://www.jianshu.com/p/5f8f6d95b79c](http://www.jianshu.com/p/5f8f6d95b79c)
@@ -259,6 +259,7 @@ Java_com_denny_anative_MainActivity_doCrash(JNIEnv *env, jobject instance) {
 ```shell
 minidump_stackwalk 557b2ff1-5987-e9c5-26c02630-18d11883.dmp ./ > backtrace.txt
 ```
+
 ```
 symbols/
 └── libcrash.so
@@ -267,6 +268,7 @@ symbols/
     │   └── libcrash.so.sym
     └── backtrace.txt
 ```
+
 ```
 Operating system: Android
                   0.0.0 Linux 3.10.28-gf3355b2 #1 SMP PREEMPT Thu Sep 24 06:09:29 CST 2015 armv7l
@@ -310,21 +312,18 @@ Thread 0 (crashed)
     Found by: stack scanning
  8  libc.so + 0x11455
  ```
+
  根据`0  libcrash.so + 0x218b8`
  使用arm-linux-androideabi-addr2line解析
- ```
- D:\sdk\ndk-bundle\toolchains\arm-linux-androideabi-4.9\prebuilt\windows-x86_64\b
-in>arm-linux-androideabi-addr2line -C -f -e "E:\cocos2d-sample\demo\hello\native
-\app\build\intermediates\ndkBuild\debug\obj\local\armeabi-v7a\libcrash.so" 0x218
-b8
+ ` D:\sdk\ndk-bundle\toolchains\arm-linux-androideabi-4.9\prebuilt\windows-x86_64\bin>arm-linux-androideabi-addr2line -C -f -e "E:\cocos2d-sample\demo\hello\native\app\build\intermediates\ndkBuild\debug\obj\local\armeabi-v7a\libcrash.so" 0x218b8
 doCrash()
-E:/cocos2d-sample/demo/hello/native/app/src/main/cpp/native-lib.cpp:10
-```
+E:/cocos2d-sample/demo/hello/native/app/src/main/cpp/native-lib.cpp:10`
+
 代码
 ```c
-void doCrash(){
-    int *p=NULL;
-line:10    *p = 1;
-}
+             void doCrash(){
+                  int *p=NULL;
+line:10:           *p = 1;
+              }
 ```
-出现崩溃的堆栈已经出来了,不过这个过程很是麻烦,如果要做成sdk是需要修改源码,使其崩溃时将minidump文件上传至服务器,然后写一堆脚本进行自动化解析.
+崩溃的堆栈已经解析出来了,不过这个过程很是麻烦,如果要做成sdk是需要修改源码,使其崩溃时将minidump文件上传至服务器,然后写一堆脚本进行自动化解析.
