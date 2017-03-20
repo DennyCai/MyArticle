@@ -241,7 +241,8 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_com_denny_anative_MainActivity_doCrash(JNIEnv *env, jobject instance) {
     doCrash();
-}```
+}
+```
 
 ##### 4、获取并解析dmp文件
 - 编译安装breakpad原因需要dump_syms工具
