@@ -245,7 +245,7 @@ Java_com_denny_anative_MainActivity_doCrash(JNIEnv *env, jobject instance) {
 ```
 
 ##### 4、获取并解析dmp文件
-- 编译安装breakpad原因需要dump_syms工具
+- 编译安装breakpad原因需要dump_syms和minidump_stackwalk工具
 - 获取崩溃的minidump文件
 ```shell
 >adb shell "ls /sdcard/ | grep dmp"
